@@ -53,20 +53,6 @@
 #define UNLIKELY(x) (x)
 #endif
 
-/* Convert the coordinate in the scoring matrix into the coordinate in one line of the band. */
-#define set_u(u, w, i, j) { int x=(i)-(w); x=x>0?x:0; (u)=(j)-x+1; }
-
-/* Convert the coordinate in the direction matrix into the coordinate in one line of the band. */
-#define set_d(u, w, i, j, p) { int x=(i)-(w); x=x>0?x:0; x=(j)-x; (u)=x*3+p; }
-
-/*! @function
-  @abstract  Round an integer to the next closest power-2 integer.
-  @param  x  integer to be rounded (in place)
-  @discussion x will be modified.
- */
-#define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
-
-
 /* Generate query profile rearrange query sequence & calculate the weight of match/mismatch. */
 __m128i* gssw_qP_byte (const int8_t* read_num,
                        const int8_t* mat,
@@ -143,15 +129,16 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
     __m128i* pvHLoad;
     __m128i* pvHmax;
     __m128i* pvE;
-    uint8_t* mH; // used to save matrix for external traceback
+ //   uint8_t* mH; // used to save matrix for external traceback
     /* Note use of aligned memory.  Return value of 0 means success for posix_memalign. */
     if (!(!posix_memalign((void**)&pvHStore,     sizeof(__m128i), segLen*sizeof(__m128i)) &&
           !posix_memalign((void**)&pvHLoad,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
           !posix_memalign((void**)&pvHmax,       sizeof(__m128i), segLen*sizeof(__m128i)) &&
           !posix_memalign((void**)&pvE,          sizeof(__m128i), segLen*sizeof(__m128i)) &&
           !posix_memalign((void**)&alignment->seed.pvE,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&alignment->seed.pvHStore, sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&mH,           sizeof(__m128i), segLen*refLen*sizeof(__m128i)))) {
+          !posix_memalign((void**)&alignment->seed.pvHStore, sizeof(__m128i), segLen*sizeof(__m128i))
+         // && !posix_memalign((void**)&mH,           sizeof(__m128i), segLen*refLen*sizeof(__m128i))
+         )) {
         fprintf(stderr, "error:[gssw] Could not allocate memory required for alignment buffers.\n");
         exit(1);
     }
@@ -163,7 +150,7 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
     memset(pvE,                      0, segLen*sizeof(__m128i));
     memset(alignment->seed.pvE,      0, segLen*sizeof(__m128i));
     memset(alignment->seed.pvHStore, 0, segLen*sizeof(__m128i));
-    memset(mH,                       0, segLen*refLen*sizeof(__m128i));
+   // memset(mH,                       0, segLen*refLen*sizeof(__m128i));
 
     /* if we are running a seeded alignment, copy over the seeds */
     if (seed) {
@@ -172,7 +159,7 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
     }
 
     /* Set external H matrix pointer */
-    alignment->mH = mH;
+    // alignment->mH = mH;
 
     /* Record that we have done a byte-order alignment */
     alignment->is_byte = 1;
@@ -208,8 +195,6 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
 		__m128i e = vZero, vF = vZero, vMaxColumn = vZero; /* Initialize F value to 0.
 							   Any errors to vH values will be corrected in the Lazy_F loop.
 							 */
-		//max16(maxColumn[i], vMaxColumn);
-		//fprintf(stderr, "middle[%d]: %d\n", i, maxColumn[i]);
 
 		//__m128i vH = pvHStore[segLen - 1];
         __m128i vH = _mm_load_si128 (pvHStore + (segLen - 1));
@@ -226,15 +211,6 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
 
 			vH = _mm_adds_epu8(vH, _mm_load_si128(vP + j));
 			vH = _mm_subs_epu8(vH, vBias); /* vH will be always > 0 */
-	//	max16(maxColumn[i], vH);
-	//	fprintf(stderr, "H[%d]: %d\n", i, maxColumn[i]);
-            /*
-            int8_t* t;
-            int32_t ti;
-            fprintf(stdout, "%d\n", i);
-            for (t = (int8_t*)&vH, ti = 0; ti < 16; ++ti) fprintf(stdout, "%d\t", *t++);
-            fprintf(stdout, "\n");
-            */
 
 			/* Get max from vH, vE and vF. */
 			e = _mm_load_si128(pvE + j);
@@ -244,11 +220,6 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
 			vH = _mm_max_epu8(vH, vF);
 			vMaxColumn = _mm_max_epu8(vMaxColumn, vH);
 
-            // max16(maxColumn[i], vMaxColumn);
-            //fprintf(stdout, "middle[%d]: %d\n", i, maxColumn[i]);
-            //fprintf(stdout, "i=%d, j=%d\t", i, j);
-            //for (t = (int8_t*)&vMaxColumn, ti = 0; ti < 16; ++ti) fprintf(stdout, "%d\t", *t++);
-            //fprintf(stdout, "\n");
 
 			/* Save vH values. */
 			_mm_store_si128(pvHStore + j, vH);
@@ -333,10 +304,11 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
             uint8_t* t;
             int32_t ti;
             vH = pvHStore[j];
-            for (t = (uint8_t*)&vH, ti = 0; ti < 16; ++ti) {
+ /**           for (t = (uint8_t*)&vH, ti = 0; ti < 16; ++ti) {
                 //fprintf(stderr, "%d\t", *t);
                 ((uint8_t*)mH)[i*readLen + ti*segLen + j] = *t++;
             }
+**/
             //fprintf(stderr, "\n");
         }
 
@@ -428,7 +400,7 @@ gssw_alignment_end* gssw_sw_sse2_word (const int8_t* ref,
     __m128i* pvHLoad;
     __m128i* pvHmax;
     __m128i* pvE;
-    uint16_t* mH; // used to save matrix for external traceback
+ //   uint16_t* mH; // used to save matrix for external traceback
     /* Note use of aligned memory */
 
     if (!(!posix_memalign((void**)&pvHStore,     sizeof(__m128i), segLen*sizeof(__m128i)) &&
@@ -436,8 +408,8 @@ gssw_alignment_end* gssw_sw_sse2_word (const int8_t* ref,
           !posix_memalign((void**)&pvHmax,       sizeof(__m128i), segLen*sizeof(__m128i)) &&
           !posix_memalign((void**)&pvE,          sizeof(__m128i), segLen*sizeof(__m128i)) &&
           !posix_memalign((void**)&alignment->seed.pvE,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&alignment->seed.pvHStore, sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&mH,           sizeof(__m128i), segLen*refLen*sizeof(__m128i)))) {
+          !posix_memalign((void**)&alignment->seed.pvHStore, sizeof(__m128i), segLen*sizeof(__m128i))
+    )) {
         fprintf(stderr, "error:[gssw] Could not allocate memory required for alignment buffers.\n");
         exit(1);
     }
@@ -449,7 +421,7 @@ gssw_alignment_end* gssw_sw_sse2_word (const int8_t* ref,
     memset(pvE,                      0, segLen*sizeof(__m128i));
     memset(alignment->seed.pvE,      0, segLen*sizeof(__m128i));
     memset(alignment->seed.pvHStore, 0, segLen*sizeof(__m128i));
-    memset(mH,                       0, segLen*refLen*sizeof(__m128i));
+//    memset(mH,                       0, segLen*refLen*sizeof(__m128i));
 
     /* if we are running a seeded alignment, copy over the seeds */
     if (seed) {
@@ -458,7 +430,7 @@ gssw_alignment_end* gssw_sw_sse2_word (const int8_t* ref,
     }
 
     /* Set external H matrix pointer */
-    alignment->mH = mH;
+//    alignment->mH = mH;
 
     /* Record that we have done a word-order alignment */
     alignment->is_byte = 0;
@@ -560,23 +532,6 @@ end:
 				for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
 			}
 		}
-
-        /* save current column */
-        for (j = 0; LIKELY(j < segLen); ++j) {
-            uint16_t* t;
-            int32_t ti;
-            vH = pvHStore[j];
-            for (t = (uint16_t*)&vH, ti = 0; ti < 8; ++ti) {
-                //fprintf(stdout, "%d\t", *t++);
-                ((uint16_t*)mH)[i*readLen + ti*segLen + j] = *t++;
-            }
-            //fprintf(stdout, "\n");
-        }
-
-		/* Record the max score of current column. */
-		//max8(maxColumn[i], vMaxColumn);
-		//if (maxColumn[i] == terminate) break;
-
 	}
 
     memcpy(alignment->seed.pvE,      pvE,      segLen*sizeof(__m128i));
@@ -726,46 +681,6 @@ void gssw_align_clear_matrix_and_seed (gssw_align* a) {
     a->seed.pvE = NULL;
 }
 
-void gssw_print_score_matrix (const char* ref,
-                              int32_t refLen,
-                              const char* read,
-                              int32_t readLen,
-                              gssw_align* alignment,
-                              FILE* out) {
-
-    int32_t i, j;
-
-    fprintf(out, "\t");
-    for (i = 0; LIKELY(i < refLen); ++i) {
-        fprintf(out, "%c\t\t", ref[i]);
-    }
-    fprintf(out, "\n");
-
-    if (gssw_is_byte(alignment)) {
-        uint8_t* mH = alignment->mH;
-        for (j = 0; LIKELY(j < readLen); ++j) {
-            fprintf(out, "%c\t", read[j]);
-            for (i = 0; LIKELY(i < refLen); ++i) {
-                fprintf(out, "(%u, %u) %u\t", i, j,
-                        ((uint8_t*)mH)[i*readLen + j]);
-            }
-            fprintf(out, "\n");
-        }
-    } else {
-        uint16_t* mH = alignment->mH;
-        for (j = 0; LIKELY(j < readLen); ++j) {
-            fprintf(out, "%c\t", read[j]);
-            for (i = 0; LIKELY(i < refLen); ++i) {
-                fprintf(out, "(%u, %u) %u\t", i, j,
-                        ((uint16_t*)mH)[i*readLen + j]);
-            }
-            fprintf(out, "\n");
-        }
-    }
-
-    fprintf(out, "\n");
-
-}
 
 void gssw_graph_print(gssw_graph* graph) {
     uint32_t i = 0, gs = graph->size;
@@ -783,31 +698,6 @@ void gssw_graph_print(gssw_graph* graph) {
     fprintf(stdout, "GRAPH }\n");
 }
 
-void gssw_graph_print_stderr(gssw_graph* graph) {
-    uint32_t i = 0, gs = graph->size;
-    gssw_node** npp = graph->nodes;
-    fprintf(stderr, "GRAPH digraph variants {\n");
-    for (i=0; i<gs; ++i, ++npp) {
-        gssw_node* n = *npp;
-        fprintf(stderr, "GRAPH // node %u %u %s\n", n->id, n->len, n->seq);
-        uint32_t k;
-        for (k=0; k<n->count_prev; ++k) {
-            //fprintf(stdout, "GRAPH %u -> %u;\n", n->prev[k]->id, n->id);
-            fprintf(stderr, "GRAPH \"%u %s\" -> \"%u %s\";\n", n->prev[k]->id, n->prev[k]->seq, n->id, n->seq);
-        }
-    }
-    fprintf(stderr, "GRAPH }\n");
-}
-
-void gssw_graph_print_score_matrices(gssw_graph* graph, const char* read, int32_t readLen, FILE* out) {
-    uint32_t i = 0, gs = graph->size;
-    gssw_node** npp = graph->nodes;
-    for (i=0; i<gs; ++i, ++npp) {
-        gssw_node* n = *npp;
-        fprintf(out, "node %u\n", n->id);
-        gssw_print_score_matrix(n->seq, n->len, read, readLen, n->alignment, out);
-    }
-}
 
 inline int gssw_is_byte (gssw_align* alignment) {
     if (alignment->is_byte) {
@@ -817,535 +707,6 @@ inline int gssw_is_byte (gssw_align* alignment) {
     }
 }
 
-gssw_cigar* gssw_alignment_trace_back (gssw_align* alignment,
-                                       uint16_t* score,
-                                       int32_t* refEnd,
-                                       int32_t* readEnd,
-                                       const char* ref,
-                                       int32_t refLen,
-                                       const char* read,
-                                       int32_t readLen,
-                                       int32_t match,
-                                       int32_t mismatch,
-                                       int32_t gap_open,
-                                       int32_t gap_extension) {
-    if (LIKELY(gssw_is_byte(alignment))) {
-        return gssw_alignment_trace_back_byte(alignment,
-                                              score,
-                                              refEnd,
-                                              readEnd,
-                                              ref,
-                                              refLen,
-                                              read,
-                                              readLen,
-                                              match,
-                                              mismatch,
-                                              gap_open,
-                                              gap_extension);
-    } else {
-        return gssw_alignment_trace_back_word(alignment,
-                                              score,
-                                              refEnd,
-                                              readEnd,
-                                              ref,
-                                              refLen,
-                                              read,
-                                              readLen,
-                                              match,
-                                              mismatch,
-                                              gap_open,
-                                              gap_extension);
-    }
-}
-
-gssw_cigar* gssw_alignment_trace_back_byte (gssw_align* alignment,
-                                            uint16_t* score,
-                                            int32_t* refEnd,
-                                            int32_t* readEnd,
-                                            const char* ref,
-                                            int32_t refLen,
-                                            const char* read,
-                                            int32_t readLen,
-                                            int32_t match,
-                                            int32_t mismatch,
-                                            int32_t gap_open,
-                                            int32_t gap_extension) {
-
-    uint8_t* mH = (uint8_t*)alignment->mH;
-    int32_t i = *refEnd;
-    int32_t j = *readEnd;
-    // find maximum
-    uint8_t h = mH[readLen*i + j];
-	gssw_cigar* result = (gssw_cigar*)calloc(1, sizeof(gssw_cigar));
-    result->length = 0;
-
-    while (LIKELY(h != 0 && i >= 0 && j >= 0)) {
-        // look at neighbors
-        int32_t d = 0, l = 0, u = 0;
-        if (i > 0 && j > 0) {
-            d = mH[readLen*(i-1) + (j-1)];
-        }
-        if (i > 0) {
-            l = mH[readLen*(i-1) + j];
-        }
-        if (j > 0) {
-            u = mH[readLen*i + (j-1)];
-        }
-
-        // get the max of the three directions
-        int32_t n = (l > u ? l : u);
-        n = (h > n ? h : n);
-        //fprintf(stderr, "byte (%i, %i) h=%i d=%i l=%i u=%i n=%i\n", i, j, h, d, l, u, n);
-
-        if (h == n &&
-            ((d + match == h && ref[i] == read[j])
-             || (d == h && (ref[i] == 'N' || read[j] == 'N'))
-             || (d - mismatch == h && ref[i] != read[j]))) {
-            //fprintf(stderr, "(%i, %i) M %c %c\n", i, j, ref[i], read[j]);
-            gssw_cigar_push_back(result, 'M', 1);
-            h = d;
-            --i; --j;
-        } else if (l == n && (l - gap_open == h || l - gap_extension == h)) {
-            //fprintf(stderr, "(%i, %i) D\n", i, j);
-            gssw_cigar_push_back(result, 'D', 1);
-            h = l;
-            --i;
-        } else if (u == n && (u - gap_open == h || u - gap_extension == h)) {
-            //fprintf(stderr, "(%i, %i) I\n", i, j);
-            gssw_cigar_push_back(result, 'I', 1);
-            h = u;
-            --j;
-        } else {
-            break;
-        }
-    }
-
-    *score = h;
-
-    gssw_reverse_cigar(result);
-    *refEnd = i;
-    *readEnd = j;
-    return result;
-}
-
-
-// copy of the above but for 16 bit ints
-// sometimes there are good reasons for C++'s templates... sigh
-
-gssw_cigar* gssw_alignment_trace_back_word (gssw_align* alignment,
-                                            uint16_t* score,
-                                            int32_t* refEnd,
-                                            int32_t* readEnd,
-                                            const char* ref,
-                                            int32_t refLen,
-                                            const char* read,
-                                            int32_t readLen,
-                                            int32_t match,
-                                            int32_t mismatch,
-                                            int32_t gap_open,
-                                            int32_t gap_extension) {
-
-    uint16_t* mH = (uint16_t*)alignment->mH;
-    int32_t i = *refEnd;
-    int32_t j = *readEnd;
-    // find maximum
-    uint16_t h = mH[readLen*i + j];
-	gssw_cigar* result = (gssw_cigar*)calloc(1, sizeof(gssw_cigar));
-    result->length = 0;
-
-    while (LIKELY(h != 0 && i >= 0 && j >= 0)) {
-        // look at neighbors
-        int32_t d = 0, l = 0, u = 0;
-        if (i > 0 && j > 0) {
-            d = mH[readLen*(i-1) + (j-1)];
-        }
-        if (i > 0) {
-            l = mH[readLen*(i-1) + j];
-        }
-        if (j > 0) {
-            u = mH[readLen*i + (j-1)];
-        }
-        // get the max of the three directions
-        int32_t n = (l > u ? l : u);
-        n = (h > n ? h : n);
-        //fprintf(stderr, "word (%i, %i) h=%i d=%i l=%i u=%i n=%i\n", i, j, h, d, l, u, n);
-        if (h == n &&
-            ((d + match == h && ref[i] == read[j])
-             || (d == h && (ref[i] == 'N' || read[j] == 'N'))
-             || (d - mismatch == h && ref[i] != read[j]))) {
-            //fprintf(stderr, "(%i, %i) M %c %c\n", i, j, ref[i], read[j]);
-            gssw_cigar_push_back(result, 'M', 1);
-            h = d;
-            --i; --j;
-        } else if (l == n && (l - gap_open == h || l - gap_extension == h)) {
-            //fprintf(stderr, "(%i, %i) D\n", i, j);
-            gssw_cigar_push_back(result, 'D', 1);
-            h = l;
-            --i;
-        } else if (u == n && (u - gap_open == h || u - gap_extension == h)) {
-            //fprintf(stderr, "(%i, %i) I\n", i, j);
-            gssw_cigar_push_back(result, 'I', 1);
-            h = u;
-            --j;
-        } else {
-            break;
-        }
-    }
-
-    *score = h;
-
-    gssw_reverse_cigar(result);
-    *refEnd = i;
-    *readEnd = j;
-    return result;
-}
-
-gssw_graph_mapping* gssw_graph_mapping_create(void) {
-    gssw_graph_mapping* m = (gssw_graph_mapping*)calloc(1, sizeof(gssw_graph_mapping));
-    return m;
-}
-
-void gssw_graph_mapping_destroy(gssw_graph_mapping* m) {
-    int32_t i;
-    gssw_graph_cigar* g = &m->cigar;
-    for (i = 0; i < g->length; ++i) {
-        gssw_cigar_destroy(g->elements[i].cigar);
-    }
-    free(g->elements);
-    free(m);
-}
-
-gssw_graph_cigar* gssw_graph_cigar_create(void) {
-    return (gssw_graph_cigar*)calloc(1, sizeof(gssw_graph_cigar));
-}
-
-void gssw_graph_cigar_destroy(gssw_graph_cigar* g) {
-    int32_t i;
-    for (i = 0; i < g->length; ++i) {
-        gssw_cigar_destroy(g->elements[i].cigar);
-    }
-    free(g->elements);
-}
-
-void gssw_print_graph_cigar(gssw_graph_cigar* g) {
-    int32_t i;
-    gssw_node_cigar* nc = g->elements;
-    for (i = 0; i < g->length; ++i, ++nc) {
-        fprintf(stdout, "%u[", nc->node->id);
-        gssw_print_cigar(nc->cigar);
-        fprintf(stdout, "]");
-    }
-    fprintf(stdout, "\n");
-}
-
-void gssw_print_graph_mapping(gssw_graph_mapping* gm) {
-    fprintf(stdout, "%u@%i:", gm->score, gm->position);
-    gssw_print_graph_cigar(&gm->cigar);
-}
-
-/*
-char* gssw_graph_cigar_to_string(gssw_graph_cigar* g) {
-    int32_t bufsiz = g->length * 1024;
-    char* s = calloc(bufsiz, sizeof(char));
-    int32_t i;
-    int32_t c = 0;
-    gssw_node_cigar* nc = g->elements;
-    for (i = 0; i < g->length; ++i, ++nc) {
-        c = snprintf(s+c, bufsiz-c, "%u[", nc->node->id);
-        int j;
-        int l = c->length;
-        gssw_cigar_element* e = c->elements;
-        for (j=0; LIKELY(j < l); ++j, ++e) {
-            c = snprintf(s+c, bufsiz-c, "%i%c", e->length, e->type);
-        }
-        c = snprintf(s+c, bufsiz-c, "]");
-    }
-    return s;
-}
-
-char* gssw_graph_mapping_to_string(gssw_graph_mapping* gm) {
-}
-*/
-
-void gssw_reverse_graph_cigar(gssw_graph_cigar* c) {
-	gssw_graph_cigar* reversed = (gssw_graph_cigar*)malloc(sizeof(gssw_graph_cigar));
-    reversed->length = c->length;
-	reversed->elements = (gssw_node_cigar*) malloc(c->length * sizeof(gssw_node_cigar));
-    gssw_node_cigar* c1 = c->elements;
-    gssw_node_cigar* c2 = reversed->elements;
-	int32_t s = 0;
-	int32_t e = c->length - 1;
-	while (LIKELY(s <= e)) {
-		c2[s] = c1[e];
-		c2[e] = c1[s];
-		++ s;
-		-- e;
-	}
-    free(c->elements);
-    c->elements = reversed->elements;
-    free(reversed);
-}
-
-gssw_graph_mapping* gssw_graph_trace_back (gssw_graph* graph,
-                                           const char* read,
-                                           int32_t readLen,
-                                           int32_t match,
-                                           int32_t mismatch,
-                                           int32_t gap_open,
-                                           int32_t gap_extension) {
-
-    gssw_graph_mapping* gm = gssw_graph_mapping_create();
-    gssw_graph_cigar* gc = &gm->cigar;
-    uint32_t graph_cigar_bufsiz = 16;
-    gc->elements = NULL;
-    gc->elements = realloc((void*) gc->elements, graph_cigar_bufsiz * sizeof(gssw_node_cigar));
-    gc->length = 0;
-
-    gssw_node* n = graph->max_node;
-    if (!n) {
-        fprintf(stderr, "error:[gssw] Cannot trace back because graph alignment has not been run.\n");
-        fprintf(stderr, "error:[gssw] You must call graph_fill(...) before tracing back.\n");
-        exit(1);
-    }
-    uint16_t score = n->alignment->score1;
-    gm->score = score;
-    uint8_t score_is_byte = gssw_is_byte(n->alignment);
-    int32_t refEnd = n->alignment->ref_end1;
-    int32_t readEnd = n->alignment->read_end1;
-    //fprintf(stderr, "ref_end1 %i read_end1 %i\n", refEnd, readEnd);
-
-    // node cigar
-    gssw_node_cigar* nc = gc->elements;
-
-    // get terminal soft clipping
-    int32_t end_soft_clip = 0;
-    // -1 is as we are counting from the opposite side of the base
-    if (readLen - readEnd - 1) {
-        end_soft_clip = readLen - readEnd - 1;
-    }
-
-    //fprintf(stderr, "tracing back, max node = %p %u\n", n, n->id);
-    while (score > 0) {
-
-        if (gc->length == graph_cigar_bufsiz) {
-            graph_cigar_bufsiz *= 2;
-            gc->elements = realloc((void*) gc->elements, graph_cigar_bufsiz * sizeof(gssw_node_cigar));
-        }
-
-        // write the cigar to the current node
-        nc = gc->elements + gc->length;
-        //fprintf(stderr, "id=%i\n", n->id);
-        nc->cigar = gssw_alignment_trace_back (n->alignment,
-                                               &score,
-                                               &refEnd,
-                                               &readEnd,
-                                               n->seq,
-                                               n->len,
-                                               read,
-                                               readLen,
-                                               match,
-                                               mismatch,
-                                               gap_open,
-                                               gap_extension);
-
-        if (end_soft_clip) {
-            gssw_cigar_push_back(nc->cigar, 'S', end_soft_clip);
-            end_soft_clip = 0;
-        }
-        
-        nc->node = n;
-        ++gc->length;
-        //fprintf(stderr, "score is %u as we end node %p %u at position %i in read and %i in ref\n", score, n, n->id, readEnd, refEnd);
-        if (score == 0 || refEnd > 0) {
-            if (readEnd > -1) {
-                //fprintf(stderr, "soft clipping %i\n", readEnd+1);
-                gssw_cigar_push_front(nc->cigar, 'S', readEnd+1);
-            }
-            break;
-        }
-        // the read did not complete here
-        // check that we are at 0 in reference and > 0 in read
-        /*
-        if (readEnd == 0 || readEnd != 0) {
-            fprintf(stderr, "graph traceback error, at end of read or ref but score not 0\n");
-            exit(1);
-        }
-        */
-
-        // so check its inbound nodes at the given read end position
-        int32_t i;
-        gssw_node* max_prev = NULL;
-        uint16_t l = 0, d = 0, max_score = 0;
-        uint8_t max_diag = 1;
-
-        // determine direction across edge
-
-        // rationale: we have to check the left and diagonal directions
-        // vertical would stay on this node even if we are in the last column
-
-        // note that the loop is split depending on alignment score width...
-        // this is done out of paranoia that optimization will not factor two loops into two if there
-        // is an if statement with a consistent result inside of each iteration
-        if (score_is_byte) {
-            for (i = 0; i < n->count_prev; ++i) {
-                gssw_node* cn = n->prev[i];
-                l = ((uint8_t*)cn->alignment->mH)[readLen*(cn->len-1) + readEnd];
-                d = ((uint8_t*)cn->alignment->mH)[readLen*(cn->len-1) + (readEnd-1)];
-                /*
-                char t = cn->seq[cn->len-1];
-                char q = read[readEnd-1];
-                fprintf(stderr, "score=%i t=%c q=%c d=%i l=%i h=%i max_score=%i id=%i\n",
-                        score, t, q, d, l, score, max_score, cn->id);
-                */
-                bool possible_gap = (score + gap_extension == l || score + gap_open == l);
-                if ((!possible_gap || d >= l) && d > max_score) {
-                    max_score = d;
-                    max_prev = cn;
-                    max_diag = 1;
-                } else if (l > d && l > max_score && possible_gap) {
-                    max_score = l;
-                    max_prev = cn;
-                    max_diag = 0;
-                }
-            }
-        } else {
-            for (i = 0; i < n->count_prev; ++i) {
-                gssw_node* cn = n->prev[i];
-                l = ((uint16_t*)cn->alignment->mH)[readLen*(cn->len-1) + readEnd];
-                d = ((uint16_t*)cn->alignment->mH)[readLen*(cn->len-1) + (readEnd-1)];
-                bool possible_gap = (score + gap_extension == l || score + gap_open == l);
-                if ((!possible_gap || d >= l) && d > max_score) {
-                    max_score = d;
-                    max_prev = cn;
-                    max_diag = 1;
-                } else if (l > d && l > max_score && possible_gap) {
-                    max_score = l;
-                    max_prev = cn;
-                    max_diag = 0;
-                }
-            }
-        }
-    
-        // and determine max among possible transitions
-        // set node
-        // determine traceback direction
-        // did the read complete here?
-        // go to ending position, look at neighbors across all inbound nodes
-        //fprintf(stderr, "max_prev = %p, node = %p\n", max_prev, n);
-        if (max_prev) {
-            n = max_prev;
-            // update ref end repeat
-            refEnd = n->len - 1;
-            if (max_diag) {
-                --readEnd;
-                //fprintf(stderr, "M\n");
-                gssw_cigar_push_front(nc->cigar, 'M', 1);
-            } else {
-                //fprintf(stderr, "D\n");
-                gssw_cigar_push_front(nc->cigar, 'D', 1);
-            }
-            ++nc;
-        } else {
-            //fprintf(stderr, "soft clip of %i\n", readEnd+1);
-            gssw_cigar_push_front(nc->cigar, 'S', readEnd+1);
-            break;
-        }
-
-    }
-
-    //fprintf(stderr, "at end of traceback loop\n");
-    // 
-    gssw_reverse_graph_cigar(gc);
-
-    gm->position = (refEnd +1 < 0 ? 0 : refEnd +1); // drop last step by -1 on ref position
-
-    return gm;
-
-}
-
-void gssw_cigar_push_back(gssw_cigar* c, char type, uint32_t length) {
-    if (c->length == 0) {
-        c->length = 1;
-        c->elements = (gssw_cigar_element*) malloc(c->length * sizeof(gssw_cigar_element));
-        c->elements[0].type = type;
-        c->elements[0].length = length;
-    } else if (type != c->elements[c->length - 1].type) {
-        c->length++;
-        // change to not realloc every single freakin time
-        // but e.g. on doubling
-        c->elements = (gssw_cigar_element*) realloc(c->elements, c->length * sizeof(gssw_cigar_element));
-        c->elements[c->length - 1].type = type;
-        c->elements[c->length - 1].length = length;
-    } else {
-        c->elements[c->length - 1].length += length;
-    }
-}
-
-void gssw_cigar_push_front(gssw_cigar* c, char type, uint32_t length) {
-    gssw_reverse_cigar(c);
-    gssw_cigar_push_back(c, type, length);
-    gssw_reverse_cigar(c);
-    /*
-    if (c->length == 0) {
-        c->length = 1;
-        c->elements = (gssw_cigar_element*) malloc(c->length * sizeof(gssw_cigar_element));
-        c->elements[0].type = type;
-        c->elements[0].length = length;
-    } else if (type != c->elements[0].type) {
-        c->length++;
-        // change to not realloc every single freakin time
-        // but e.g. on doubling
-        c->elements = (gssw_cigar_element*) realloc(c->elements, c->length * sizeof(gssw_cigar_element));
-        //gssw_cigar_element* new = (gssw_cigar_element*) malloc(c->length * sizeof(gssw_cigar_element));
-        //(gssw_cigar_element*) memcpy(new + sizeof(gssw_cigar_element), c->elements, c->length-1 * sizeof(gssw_cigar_element));
-        //free(c->elements);
-        int32_t i;
-        for (i = c->length-1; i > 1; --i) {
-            c->elements[i].type = c->elements[i-1].type;
-            c->elements[i].length = c->elements[i-1].length;
-        }
-        c->elements[0].type = type;
-        c->elements[0].length = length;
-    } else {
-        c->elements[0].length += length;
-    }
-    */
-}
-
-void gssw_reverse_cigar(gssw_cigar* c) {
-    if (!c->length) return; // bail out
-	gssw_cigar* reversed = (gssw_cigar*)malloc(sizeof(gssw_cigar));
-    reversed->length = c->length;
-	reversed->elements = (gssw_cigar_element*) malloc(c->length * sizeof(gssw_cigar_element));
-    gssw_cigar_element* c1 = c->elements;
-    gssw_cigar_element* c2 = reversed->elements;
-	int32_t s = 0;
-	int32_t e = c->length - 1;
-	while (LIKELY(s <= e)) {
-		c2[s] = c1[e];
-		c2[e] = c1[s];
-		++ s;
-		-- e;
-	}
-    free(c->elements);
-    c->elements = reversed->elements;
-    free(reversed);
-}
-
-void gssw_print_cigar(gssw_cigar* c) {
-    int i;
-    int l = c->length;
-    gssw_cigar_element* e = c->elements;
-    for (i=0; LIKELY(i < l); ++i, ++e) {
-        printf("%i%c", e->length, e->type);
-    }
-}
-
-void gssw_cigar_destroy(gssw_cigar* c) {
-    free(c->elements);
-    c->elements = NULL;
-    free(c);
-}
 
 void gssw_seed_destroy(gssw_seed* s) {
     free(s->pvE);
