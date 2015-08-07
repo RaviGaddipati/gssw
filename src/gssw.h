@@ -85,7 +85,7 @@ struct gssw_profile{
 //typedef struct node s_node;
 typedef struct _gssw_node gssw_node;
 typedef struct _gssw_node {
-    void* data;
+    int data;
     uint32_t id;
     char* seq; // sequence
     int8_t* num; // numerical conversion of seq
@@ -351,7 +351,7 @@ void gssw_reverse_cigar(gssw_cigar* c);
 void gssw_print_cigar(gssw_cigar* c);
 void gssw_cigar_destroy(gssw_cigar* c);
 
-gssw_node* gssw_node_create(void* data,
+gssw_node* gssw_node_create(int data,
                             const uint32_t id,
                             const char* seq,
                             const int8_t* nt_table,

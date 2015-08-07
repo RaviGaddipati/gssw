@@ -716,7 +716,7 @@ void gssw_seed_destroy(gssw_seed* s) {
     free(s);
 }
 
-gssw_node* gssw_node_create(void* data,
+gssw_node* gssw_node_create(int data,
                             const uint32_t id,
                             const char* seq,
                             const int8_t* nt_table,
