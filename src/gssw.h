@@ -6,6 +6,8 @@
  *	Version 0.1.4
  *	Last revision by Mengyao Zhao on 01/30/13.
  *
+ *	Modified by Ravi Gaddipati to remove traceback.
+ *
  */
 
 #ifndef SSW_H

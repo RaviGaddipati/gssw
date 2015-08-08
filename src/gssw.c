@@ -34,6 +34,8 @@
  *	Version 0.1.4
  *	Last revision by Erik Garrison 01/02/2014
  *
+ *	Modified by Ravi Gaddipati to remove traceback.
+ *
  */
 
 #include <emmintrin.h>
