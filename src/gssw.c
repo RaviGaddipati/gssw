@@ -947,6 +947,10 @@ gssw_graph_fill (gssw_graph* graph,
             return gssw_graph_fill(graph, read_seq, nt_table, score_matrix, weight_gapO, weight_gapE, maskLen, 1);
         } else {
             if (!graph->max_node || n->alignment->score1 > max_score) {
+                if(graph->max_node) {
+                    n->alignment->score2 = max_score;
+                    n->alignment->ref_end2 = graph->max_node->data;
+                }
                 graph->max_node = n;
                 max_score = n->alignment->score1;
             }
