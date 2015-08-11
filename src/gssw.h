@@ -52,6 +52,7 @@ typedef struct {
 	int32_t	read_begin1;
 	int32_t read_end1;
 	int32_t ref_end2;
+    int32_t prevmax;
     gssw_seed seed;
     uint8_t is_byte;
     void* mH;
