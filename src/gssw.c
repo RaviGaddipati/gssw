@@ -666,7 +666,7 @@ gssw_align* gssw_align_create (void) {
     a->mH = NULL;
 	a->ref_begin1 = -1;
 	a->read_begin1 = -1;
-    a->prevmax = NULL;
+    a->prevmax = -1;
     return a;
 }
 
