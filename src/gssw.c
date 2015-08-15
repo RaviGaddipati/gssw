@@ -40,11 +40,8 @@
 
 #include <emmintrin.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
-#include <inttypes.h>
 #include "gssw.h"
 
 #ifdef __GNUC__
@@ -119,27 +116,18 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
                                        uint8_t bias,  /* Shift 0 point to a positive value. */
                                        int32_t maskLen,
                                        gssw_align* alignment, /* to save seed and matrix */
-                                       const gssw_seed* seed) {     /* to seed the alignment */
+                                       const gssw_seed* seed,
+__m128i* pvHStore, __m128i* pvHLoad, __m128i* pvHmax, __m128i* pvE) {     /* to seed the alignment */
 
 	uint8_t max = 0;		                     /* the max alignment score */
 	int32_t end_read = readLen - 1;
 	int32_t end_ref = -1; /* 0_based best alignment ending point; Initialized as isn't aligned -1. */
 	int32_t segLen = (readLen + 15) / 16; /* number of segment */
 
-    /* Initialize buffers used in alignment */
-	__m128i* pvHStore;
-    __m128i* pvHLoad;
-    __m128i* pvHmax;
-    __m128i* pvE;
- //   uint8_t* mH; // used to save matrix for external traceback
+
     /* Note use of aligned memory.  Return value of 0 means success for posix_memalign. */
-    if (!(!posix_memalign((void**)&pvHStore,     sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&pvHLoad,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&pvHmax,       sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&pvE,          sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&alignment->seed.pvE,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
+    if (!(!posix_memalign((void**)&alignment->seed.pvE,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
           !posix_memalign((void**)&alignment->seed.pvHStore, sizeof(__m128i), segLen*sizeof(__m128i))
-         // && !posix_memalign((void**)&mH,           sizeof(__m128i), segLen*refLen*sizeof(__m128i))
          )) {
         fprintf(stderr, "error:[gssw] Could not allocate memory required for alignment buffers.\n");
         exit(1);
@@ -152,16 +140,12 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
     memset(pvE,                      0, segLen*sizeof(__m128i));
     memset(alignment->seed.pvE,      0, segLen*sizeof(__m128i));
     memset(alignment->seed.pvHStore, 0, segLen*sizeof(__m128i));
-   // memset(mH,                       0, segLen*refLen*sizeof(__m128i));
 
     /* if we are running a seeded alignment, copy over the seeds */
     if (seed) {
         memcpy(pvE, seed->pvE, segLen*sizeof(__m128i));
         memcpy(pvHStore, seed->pvHStore, segLen*sizeof(__m128i));
     }
-
-    /* Set external H matrix pointer */
-    // alignment->mH = mH;
 
     /* Record that we have done a byte-order alignment */
     alignment->is_byte = 1;
@@ -300,18 +284,10 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
 		}
 
         // save the current column
-
-        //fprintf(stdout, "%i %i\n", i, j);
         for (j = 0; LIKELY(j < segLen); ++j) {
             uint8_t* t;
             int32_t ti;
             vH = pvHStore[j];
- /**           for (t = (uint8_t*)&vH, ti = 0; ti < 16; ++ti) {
-                //fprintf(stderr, "%d\t", *t);
-                ((uint8_t*)mH)[i*readLen + ti*segLen + j] = *t++;
-            }
-**/
-            //fprintf(stderr, "\n");
         }
 
 
@@ -322,7 +298,6 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
 
 	}
         
-    //fprintf(stderr, "%p %p %p %p %p %p\n", *pmH, mH, pvHmax, pvE, pvHLoad, pvHStore);
     // save the last vH
     memcpy(alignment->seed.pvE,      pvE,      segLen*sizeof(__m128i));
     memcpy(alignment->seed.pvHStore, pvHStore, segLen*sizeof(__m128i));
@@ -337,13 +312,6 @@ gssw_alignment_end* gssw_sw_sse2_byte (const int8_t* ref,
 			if (temp < end_read) end_read = temp;
 		}
 	}
-
-    //fprintf(stderr, "%p %p %p %p %p %p\n", *pmH, mH, pvHmax, pvE, pvHLoad, pvHStore);
-
-	free(pvE);
-	free(pvHmax);
-	free(pvHLoad);
-    free(pvHStore);
 
 	/* Find the most possible 2nd best alignment. */
 	gssw_alignment_end* bests = (gssw_alignment_end*) calloc(2, sizeof(gssw_alignment_end));
@@ -389,7 +357,8 @@ gssw_alignment_end* gssw_sw_sse2_word (const int8_t* ref,
                                        uint16_t terminate,
                                        int32_t maskLen,
                                        gssw_align* alignment, /* to save seed and matrix */
-                                       const gssw_seed* seed) {     /* to seed the alignment */
+                                       const gssw_seed* seed,
+__m128i* pvHStore, __m128i* pvHLoad, __m128i* pvHmax, __m128i* pvE) {     /* to seed the alignment */
     
 
 	uint16_t max = 0;		                     /* the max alignment score */
@@ -397,19 +366,9 @@ gssw_alignment_end* gssw_sw_sse2_word (const int8_t* ref,
 	int32_t end_ref = 0; /* 1_based best alignment ending point; Initialized as isn't aligned - 0. */
 	int32_t segLen = (readLen + 7) / 8; /* number of segment */
 
-    /* Initialize buffers used in alignment */
-	__m128i* pvHStore;
-    __m128i* pvHLoad;
-    __m128i* pvHmax;
-    __m128i* pvE;
- //   uint16_t* mH; // used to save matrix for external traceback
     /* Note use of aligned memory */
 
-    if (!(!posix_memalign((void**)&pvHStore,     sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&pvHLoad,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&pvHmax,       sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&pvE,          sizeof(__m128i), segLen*sizeof(__m128i)) &&
-          !posix_memalign((void**)&alignment->seed.pvE,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
+    if (!(!posix_memalign((void**)&alignment->seed.pvE,      sizeof(__m128i), segLen*sizeof(__m128i)) &&
           !posix_memalign((void**)&alignment->seed.pvHStore, sizeof(__m128i), segLen*sizeof(__m128i))
     )) {
         fprintf(stderr, "error:[gssw] Could not allocate memory required for alignment buffers.\n");
@@ -423,7 +382,6 @@ gssw_alignment_end* gssw_sw_sse2_word (const int8_t* ref,
     memset(pvE,                      0, segLen*sizeof(__m128i));
     memset(alignment->seed.pvE,      0, segLen*sizeof(__m128i));
     memset(alignment->seed.pvHStore, 0, segLen*sizeof(__m128i));
-//    memset(mH,                       0, segLen*refLen*sizeof(__m128i));
 
     /* if we are running a seeded alignment, copy over the seeds */
     if (seed) {
@@ -431,8 +389,6 @@ gssw_alignment_end* gssw_sw_sse2_word (const int8_t* ref,
         memcpy(pvHStore, seed->pvHStore, segLen*sizeof(__m128i));
     }
 
-    /* Set external H matrix pointer */
-//    alignment->mH = mH;
 
     /* Record that we have done a word-order alignment */
     alignment->is_byte = 0;
@@ -551,11 +507,6 @@ end:
 		}
 	}
 
-	free(pvE);
-	free(pvHmax);
-	free(pvHLoad);
-    free(pvHStore);
-
 	/* Find the most possible 2nd best alignment. */
 	gssw_alignment_end* bests = (gssw_alignment_end*) calloc(2, sizeof(gssw_alignment_end));
 	bests[0].score = max;
@@ -605,58 +556,6 @@ void gssw_init_destroy (gssw_profile* p) {
 	free(p->profile_byte);
 	free(p->profile_word);
 	free(p);
-}
-
-gssw_align* gssw_fill (const gssw_profile* prof,
-                       const int8_t* ref,
-                       const int32_t refLen,
-                       const uint8_t weight_gapO,
-                       const uint8_t weight_gapE,
-                       const int32_t maskLen,
-                       gssw_seed* seed) {
-
-	gssw_alignment_end* bests = 0;
-	int32_t readLen = prof->readLen;
-    gssw_align* alignment = gssw_align_create();
-
-	if (maskLen < 15) {
-		fprintf(stderr, "When maskLen < 15, the function ssw_align doesn't return 2nd best alignment information.\n");
-	}
-
-	// Find the alignment scores and ending positions
-	if (prof->profile_byte) {
-		bests = gssw_sw_sse2_byte(ref, 0, refLen, readLen, weight_gapO, weight_gapE, prof->profile_byte, -1, prof->bias, maskLen,
-                             alignment, seed);
-
-		if (prof->profile_word && bests[0].score == 255) {
-			free(bests);
-            gssw_align_clear_matrix_and_seed(alignment);
-            bests = gssw_sw_sse2_word(ref, 0, refLen, readLen, weight_gapO, weight_gapE, prof->profile_byte, -1, maskLen,
-                                      alignment, seed);
-        } else if (bests[0].score == 255) {
-			fprintf(stderr, "Please set 2 to the score_size parameter of the function ssw_init, otherwise the alignment results will be incorrect.\n");
-			return 0;
-		}
-	} else if (prof->profile_word) {
-		bests = gssw_sw_sse2_word(ref, 0, refLen, readLen, weight_gapO, weight_gapE, prof->profile_word, -1, maskLen,
-                                  alignment, seed);
-    } else {
-		fprintf(stderr, "Please call the function ssw_init before ssw_align.\n");
-		return 0;
-	}
-	alignment->score1 = bests[0].score;
-	alignment->ref_end1 = bests[0].ref;
-	alignment->read_end1 = bests[0].read;
-	if (maskLen >= 15) {
-		alignment->score2 = bests[1].score;
-		alignment->ref_end2 = bests[1].ref;
-	} else {
-	    alignment->score2 = 0;
-		alignment->ref_end2 = -1;
-	}
-	free(bests);
-
-	return alignment;
 }
 
 gssw_align* gssw_align_create (void) {
@@ -918,12 +817,28 @@ gssw_graph_fill (gssw_graph* graph,
                  const uint8_t weight_gapE,
                  const int32_t maskLen,
                  const int8_t score_size) {
+#if DEBUG > 3
+	uint64_t ggfStart = get_timestamp();
+#endif
+
+
+    __m128i *pvHStore;
+    __m128i *pvHLoad;
+    __m128i *pvHmax;
+    __m128i *pvE;
 
     int32_t read_length = strlen(read_seq);
     int8_t* read_num = gssw_create_num(read_seq, read_length, nt_table);
 	gssw_profile* prof = gssw_init(read_num, read_length, score_matrix, 5, score_size);
     gssw_seed* seed = NULL;
     uint16_t max_score = 0;
+
+    int32_t segLen = (prof->readLen + 15) / 16;
+
+    posix_memalign((void**)&pvHStore,     sizeof(__m128i), segLen*sizeof(__m128i));
+    posix_memalign((void**)&pvHLoad,      sizeof(__m128i), segLen*sizeof(__m128i));
+    posix_memalign((void**)&pvHmax,       sizeof(__m128i), segLen*sizeof(__m128i));
+    posix_memalign((void**)&pvE,          sizeof(__m128i), segLen*sizeof(__m128i));
 
     // for each node, from start to finish in the partial order (which should be sorted topologically)
     // generate a seed from input nodes or use existing (e.g. for subgraph traversal here)
@@ -937,7 +852,7 @@ gssw_graph_fill (gssw_graph* graph,
         } else {
             seed = gssw_create_seed_word(prof->readLen, n->prev, n->count_prev);
         }
-        gssw_node* filled_node = gssw_node_fill(n, prof, weight_gapO, weight_gapE, maskLen, seed);
+        gssw_node* filled_node = gssw_node_fill(n, prof, weight_gapO, weight_gapE, maskLen, seed, pvHStore, pvHLoad, pvHmax, pvE);
         gssw_seed_destroy(seed); seed = NULL; // cleanup seed
         // test if we have exceeded the score dynamic range
         if (prof->profile_byte && !filled_node) {
@@ -961,7 +876,14 @@ gssw_graph_fill (gssw_graph* graph,
 
     free(read_num);
     gssw_profile_destroy(prof);
-
+#if DEBUG > 3
+    uint64_t ggfEnd = get_timestamp();
+    fprintf(stdout, "Graph fill time (us): %llu\n", ggfEnd - ggfStart);
+#endif
+    free(pvHStore);
+    free(pvHLoad);
+    free(pvE);
+    free(pvHmax);
     return graph;
 
 }
@@ -975,7 +897,8 @@ gssw_node_fill (gssw_node* node,
                 const uint8_t weight_gapO,
                 const uint8_t weight_gapE,
                 const int32_t maskLen,
-                const gssw_seed* seed) {
+                const gssw_seed* seed,
+                __m128i* pvHStore, __m128i* pvHLoad, __m128i* pvHmax, __m128i* pvE) {
 
 	gssw_alignment_end* bests = NULL;
 	int32_t readLen = prof->readLen;
@@ -1001,14 +924,16 @@ gssw_node_fill (gssw_node* node,
 
 	// Find the alignment scores and ending positions
 	if (prof->profile_byte) {
-		bests = gssw_sw_sse2_byte((const int8_t*)node->num, 0, node->len, readLen, weight_gapO, weight_gapE, prof->profile_byte, -1, prof->bias, maskLen, alignment, seed);
+		bests = gssw_sw_sse2_byte((const int8_t*)node->num, 0, node->len, readLen, weight_gapO, weight_gapE, prof->profile_byte, -1, prof->bias, maskLen, alignment, seed,
+                                  pvHStore, pvHLoad, pvHmax, pvE);
 		if (bests[0].score == 255) {
 			free(bests);
             gssw_align_clear_matrix_and_seed(alignment);
             return 0; // re-run from external context
 		}
 	} else if (prof->profile_word) {
-        bests = gssw_sw_sse2_word((const int8_t*)node->num, 0, node->len, readLen, weight_gapO, weight_gapE, prof->profile_word, -1, maskLen, alignment, seed);
+        bests = gssw_sw_sse2_word((const int8_t*)node->num, 0, node->len, readLen, weight_gapO, weight_gapE, prof->profile_word, -1, maskLen, alignment, seed,
+                                  pvHStore, pvHLoad, pvHmax, pvE);
     } else {
 		fprintf(stderr, "Please call the function ssw_init before ssw_align.\n");
 		return 0;

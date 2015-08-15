@@ -13,12 +13,23 @@
 #ifndef SSW_H
 #define SSW_H
 
+#define DEBUG 5
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
 #include <smmintrin.h>
+#include <sys/time.h>
+
+static uint64_t
+get_timestamp ()
+{
+    struct timeval now;
+    gettimeofday (&now, NULL);
+    return  now.tv_usec + (uint64_t)now.tv_sec * 1000000;
+}
 
 /*!	@typedef	structure of the query profile	*/
 struct gssw_profile;
@@ -280,56 +291,6 @@ void gssw_print_score_matrix (const char* ref,
 void gssw_graph_print(gssw_graph* graph);
 void gssw_graph_print_stderr(gssw_graph* graph);
 
-/*! @function         Trace back alignment across score matrix stored in alignment structure
-    @param alignment  Alignment structure.
-    @param end        Alignment ending position.
-*/
-gssw_cigar* gssw_alignment_trace_back_byte (gssw_align* alignment,
-                                            uint16_t* score,
-                                            int32_t* refEnd,
-                                            int32_t* readEnd,
-                                            const char* ref,
-                                            int32_t refLen,
-                                            const char* read,
-                                            int32_t readLen,
-                                            int32_t match,
-                                            int32_t mismatch,
-                                            int32_t gap_open,
-                                            int32_t gap_extension);
-
-gssw_cigar* gssw_alignment_trace_back_word (gssw_align* alignment,
-                                            uint16_t* score,
-                                            int32_t* refEnd,
-                                            int32_t* readEnd,
-                                            const char* ref,
-                                            int32_t refLen,
-                                            const char* read,
-                                            int32_t readLen,
-                                            int32_t match,
-                                            int32_t mismatch,
-                                            int32_t gap_open,
-                                            int32_t gap_extension);
-
-gssw_cigar* gssw_alignment_trace_back (gssw_align* alignment,
-                                       uint16_t* score,
-                                       int32_t* refEnd,
-                                       int32_t* readEnd,
-                                       const char* ref,
-                                       int32_t refLen,
-                                       const char* read,
-                                       int32_t readLen,
-                                       int32_t match,
-                                       int32_t mismatch,
-                                       int32_t gap_open,
-                                       int32_t gap_extension);
-
-gssw_graph_mapping* gssw_graph_trace_back (gssw_graph* graph,
-                                           const char* read,
-                                           int32_t readLen,
-                                           int32_t match,
-                                           int32_t mismatch,
-                                           int32_t gap_open,
-                                           int32_t gap_extension);
     
 /*! @function         Return 1 if the alignment is in 16/128bit (byte sized) or 0 if word-sized.
     @param alignment  Alignment structure.
@@ -341,7 +302,6 @@ int gssw_is_byte (gssw_align* alignment);
     @param readPos    Starting position of alignment in reference.
     @param readPos    Starting position of alignment in read.
 */
-//cigar* traceback (s_align* alignment, int32_t readPos, int32_t refPos);
 
 void gssw_profile_destroy(gssw_profile* prof);
 void gssw_seed_destroy(gssw_seed* seed);
@@ -376,7 +336,8 @@ gssw_node_fill (gssw_node* node,
                 const uint8_t weight_gapO,
                 const uint8_t weight_gapE,
                 const int32_t maskLen,
-                const gssw_seed* seed);
+                const gssw_seed* seed,
+                __m128i* pvHStore, __m128i* pvHLoad, __m128i* pvHmax, __m128i* pvE);
 
 gssw_graph*
 gssw_graph_fill (gssw_graph* graph,
