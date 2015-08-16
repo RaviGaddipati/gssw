@@ -532,10 +532,6 @@ gssw_align *gssw_align_create(void) {
     gssw_align *a = (gssw_align *) calloc(1, sizeof(gssw_align));
     a->seed.pvHStore = NULL;
     a->seed.pvE = NULL;
-    a->mH = NULL;
-    a->ref_begin1 = -1;
-    a->read_begin1 = -1;
-    a->prevmax = -1;
     return a;
 }
 
@@ -545,8 +541,6 @@ void gssw_align_destroy(gssw_align *a) {
 }
 
 void gssw_align_clear_matrix_and_seed(gssw_align *a) {
-    free(a->mH);
-    a->mH = NULL;
     free(a->seed.pvHStore);
     a->seed.pvHStore = NULL;
     free(a->seed.pvE);
@@ -722,10 +716,15 @@ gssw_graph_fill(gssw_graph *graph,
 
     int32_t segLen = (prof->readLen + 15) / 16;
 
-    if (!posix_memalign((void **) &pvHStore, sizeof(__m128i), segLen * sizeof(__m128i)) ||
-        !posix_memalign((void **) &pvHLoad, sizeof(__m128i), segLen * sizeof(__m128i)) ||
-        !posix_memalign((void **) &pvHmax, sizeof(__m128i), segLen * sizeof(__m128i)) ||
-        !posix_memalign((void **) &pvE, sizeof(__m128i), segLen * sizeof(__m128i))) {
+    graph->maxCount = 0;
+    graph->submaxCount = 0;
+    graph->max_node = NULL;
+    graph->submax_node = NULL;
+
+    if (!(!posix_memalign((void **) &pvHStore, sizeof(__m128i), segLen * sizeof(__m128i)) &&
+          !posix_memalign((void **) &pvHLoad, sizeof(__m128i), segLen * sizeof(__m128i)) &&
+          !posix_memalign((void **) &pvHmax, sizeof(__m128i), segLen * sizeof(__m128i)) &&
+          !posix_memalign((void **) &pvE, sizeof(__m128i), segLen * sizeof(__m128i)))) {
         fprintf(stderr, "Error allocating memory in graph fill\n");
         exit(1);
     }
@@ -754,15 +753,47 @@ gssw_graph_fill(gssw_graph *graph,
             gssw_profile_destroy(prof);
             return gssw_graph_fill(graph, read_seq, nt_table, score_matrix, weight_gapO, weight_gapE, maskLen, 1);
         } else {
-            if (!graph->max_node || n->alignment->score1 > max_score) {
-                if (graph->max_node &&
-                    (graph->max_node->data - graph->max_node->len + graph->max_node->alignment->ref_end1 + maskLen)
-                    < (n->data - n->len + n->alignment->ref_end1)) {
-                    n->alignment->prevmax = graph->max_node->id;
-                }
+            /** New high score found **/
+            if (!graph->max_node || n->alignment->score > max_score) {
                 graph->max_node = n;
-                max_score = n->alignment->score1;
+                max_score = n->alignment->score;
+                graph->maxCount = 1;
             }
+                /** If a repeat of the max score is found away from the current max score **/
+            else if (((n->data + 1 - n->len + n->alignment->ref_end) >
+                      (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end +
+                       maskLen) ||
+                      (n->data + 1 - n->len + n->alignment->ref_end) <
+                      (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end -
+                       maskLen - prof->readLen)) &&
+                     n->alignment->score == max_score) {
+                graph->maxCount++;
+            }
+            /** A better suboptimal score is found **/
+            if ((!graph->submax_node || n->alignment->score > graph->submax_node->alignment->score) &&
+                ((n->data + 1 - n->len + n->alignment->ref_end) >
+                 (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end + maskLen) ||
+                 (n->data + 1 - n->len + n->alignment->ref_end) <
+                 (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end - maskLen -
+                  prof->readLen))) {
+                graph->submax_node = n;
+                graph->submaxCount = 1;
+            }
+                /** If a repeat suboptimal score is found away from the current suboptimal **/
+            else if (graph->submax_node && n->alignment->score == graph->submax_node->alignment->score &&
+                     ((n->data + 1 - n->len + n->alignment->ref_end) >
+                      (graph->submax_node->data + 1 - graph->submax_node->len + graph->submax_node->alignment->ref_end +
+                       maskLen) ||
+                      (n->data + 1 - n->len + n->alignment->ref_end) <
+                      (graph->submax_node->data + 1 - graph->submax_node->len + graph->submax_node->alignment->ref_end -
+                       maskLen - prof->readLen))) {
+                graph->submaxCount++;
+                /** Keep the position of the suboptimal closest to the optimal **/
+                if (abs(graph->max_node->id - n->id) < abs(graph->max_node->id - graph->submax_node->id)) {
+                    graph->submax_node = n;
+                }
+            }
+
         }
     }
 
@@ -830,16 +861,9 @@ gssw_node_fill(gssw_node *node,
         return 0;
     }
 
-    alignment->score1 = bests[0].score;
-    alignment->ref_end1 = bests[0].ref;
-    alignment->read_end1 = bests[0].read;
-    if (maskLen >= 15) {
-        alignment->score2 = bests[1].score;
-        alignment->ref_end2 = bests[1].ref;
-    } else {
-        alignment->score2 = 0;
-        alignment->ref_end2 = -1;
-    }
+    alignment->score = bests[0].score;
+    alignment->ref_end = bests[0].ref;
+    alignment->read_end = bests[0].read;
     free(bests);
 
     return node;
@@ -849,15 +873,13 @@ gssw_node_fill(gssw_node *node,
 gssw_graph *gssw_graph_create(uint32_t size) {
     gssw_graph *g = calloc(1, sizeof(gssw_graph));
     g->nodes = malloc(size * sizeof(gssw_node *));
+    g->maxCount = 0;
+    g->submaxCount = 0;
     if (!g || !g->nodes) {
         fprintf(stderr, "error:[gssw] Could not allocate memory for graph of %u nodes.\n", size);
         exit(1);
     }
     return g;
-}
-
-void gssw_graph_clear_alignment(gssw_graph *g) {
-    g->max_node = NULL;
 }
 
 void gssw_graph_destroy(gssw_graph *g) {
@@ -866,6 +888,7 @@ void gssw_graph_destroy(gssw_graph *g) {
         gssw_node_destroy(g->nodes[i]);
     }
     g->max_node = NULL;
+    g->submax_node = NULL;
     free(g->nodes);
     g->nodes = NULL;
     free(g);
