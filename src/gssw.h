@@ -13,7 +13,7 @@
 #ifndef SSW_H
 #define SSW_H
 
-#define DEBUG 0
+#define DEBUG 6
 
 #include <stdio.h>
 #include <stdlib.h>

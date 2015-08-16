@@ -177,6 +177,11 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
         end = -1;
         step = -1;
     }
+#if DEBUG > 5
+    uint64_t alignStart = get_timestamp();
+    uint64_t lazyFt = 0;
+    uint64_t temp;
+#endif
     for (i = begin; LIKELY(i != end); i += step) {
         int32_t cmp;
         __m128i e = vZero, vF = vZero, vMaxColumn = vZero; /* Initialize F value to 0.
@@ -227,7 +232,9 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
             vH = _mm_load_si128(pvHLoad + j);
         }
 
-
+#if DEBUG > 5
+        temp = get_timestamp();
+#endif
         /* Lazy_F loop: has been revised to disallow adjecent insertion and then deletion, so don't update E(i, j), learn from SWPS3 */
         /* reset pointers to the start of the saved data */
         j = 0;
@@ -242,6 +249,7 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
         vTemp = _mm_subs_epu8(vF, vTemp);
         vTemp = _mm_cmpeq_epi8(vTemp, vZero);
         cmp = _mm_movemask_epi8(vTemp);
+
         while (cmp != 0xffff) {
             vH = _mm_max_epu8(vH, vF);
             vMaxColumn = _mm_max_epu8(vMaxColumn, vH);
@@ -261,7 +269,9 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
             vTemp = _mm_cmpeq_epi8(vTemp, vZero);
             cmp = _mm_movemask_epi8(vTemp);
         }
-
+#if DEBUG > 5
+        lazyFt += get_timestamp() - temp;
+#endif
         vMaxScore = _mm_max_epu8(vMaxScore, vMaxColumn);
         vTemp = _mm_cmpeq_epi8(vMaxMark, vMaxScore);
         cmp = _mm_movemask_epi8(vTemp);
@@ -284,6 +294,11 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
 
 
     }
+#if DEBUG > 5
+    uint64_t alignEnd = get_timestamp();
+    fprintf(stdout, "Total time (us): %llu, lazy F: %f%%\n", alignEnd - alignStart,
+            100.0f * lazyFt / (alignEnd - alignStart));
+#endif
 
     // save the last vH
     memcpy(alignment->seed.pvE, pvE, segLen * sizeof(__m128i));
@@ -759,7 +774,7 @@ gssw_graph_fill(gssw_graph *graph,
                 max_score = n->alignment->score;
                 graph->maxCount = 1;
             }
-            /** If a repeat of the max score is found away from the current max score **/
+                /** If a repeat of the max score is found away from the current max score **/
             else if (((n->data + 1 - n->len + n->alignment->ref_end) >
                       (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end +
                        maskLen) ||
