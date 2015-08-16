@@ -759,7 +759,7 @@ gssw_graph_fill(gssw_graph *graph,
                 max_score = n->alignment->score;
                 graph->maxCount = 1;
             }
-                /** If a repeat of the max score is found away from the current max score **/
+            /** If a repeat of the max score is found away from the current max score **/
             else if (((n->data + 1 - n->len + n->alignment->ref_end) >
                       (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end +
                        maskLen) ||
