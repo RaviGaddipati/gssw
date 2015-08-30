@@ -103,6 +103,8 @@ typedef struct _gssw_node {
     gssw_node** next;
     int32_t count_next;
     gssw_align* alignment;
+  int16_t* indiv;
+  int8_t indivSize;
 } _gssw_node;
 
 
@@ -196,6 +198,7 @@ void gssw_node_add_prev(gssw_node* n, gssw_node* m);
 void gssw_node_add_next(gssw_node* n, gssw_node* m);
 void gssw_nodes_add_edge(gssw_node* n, gssw_node* m);
 
+void gssw_node_add_indiv(gssw_node *n, int16_t indiv);
 
 gssw_node*
 gssw_node_fill (gssw_node* node,
