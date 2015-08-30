@@ -104,7 +104,7 @@ typedef struct _gssw_node {
     int32_t count_next;
     gssw_align* alignment;
   int16_t* indiv;
-  int8_t indivSize;
+  int16_t indivSize;
 } _gssw_node;
 
 
