@@ -569,7 +569,7 @@ void gssw_seed_destroy(gssw_seed *s) {
   free(s);
 }
 
-gssw_node* gssw_node_create(int data,
+gssw_node *gssw_node_create(int data,
                             const uint32_t id,
                             const char *seq,
                             const int8_t *nt_table,
@@ -636,7 +636,7 @@ void gssw_nodes_add_edge(gssw_node *n, gssw_node *m) {
 
 void gssw_node_add_indiv(gssw_node *n, int16_t indiv) {
   n->indivSize++;
-  n->indiv = (int16_t*) realloc(n->indiv, n->indivSize * sizeof(int16_t));
+  n->indiv = (int16_t *) realloc(n->indiv, n->indivSize * sizeof(int16_t));
   n->indiv[n->indivSize - 1] = indiv;
 }
 
@@ -718,7 +718,8 @@ gssw_graph_fill(gssw_graph *graph,
                 const uint8_t weight_gapO,
                 const uint8_t weight_gapE,
                 const int32_t maskLen,
-                const int8_t score_size) {
+                const int8_t score_size,
+                const uint32_t readOriginPos) {
 #if DEBUG > 3
   uint64_t ggfStart = get_timestamp();
 #endif
@@ -772,8 +773,24 @@ gssw_graph_fill(gssw_graph *graph,
       prof->profile_byte = NULL;
       free(read_num);
       gssw_profile_destroy(prof);
-      return gssw_graph_fill(graph, read_seq, nt_table, score_matrix, weight_gapO, weight_gapE, maskLen, 1);
+      return gssw_graph_fill(graph,
+                             read_seq,
+                             nt_table,
+                             score_matrix,
+                             weight_gapO,
+                             weight_gapE,
+                             maskLen,
+                             1,
+                             readOriginPos);
     } else {
+
+      /** Absolute positions **/
+      uint32_t absRefEndPos = (uint32_t) n->data + 1 - n->len + n->alignment->ref_end;
+      uint32_t absOptEndPos =
+          (uint32_t) graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end;
+      uint32_t absSuboptEndPos =
+          (uint32_t) graph->submax_node->data + 1 - graph->submax_node->len + graph->submax_node->alignment->ref_end;
+
       /** New high score found **/
       if (!graph->max_node || n->alignment->score > max_score) {
         graph->max_node = n;
@@ -781,36 +798,26 @@ gssw_graph_fill(gssw_graph *graph,
         graph->maxCount = 1;
       }
         /** If a repeat of the max score is found away from the current max score **/
-      else if (((n->data + 1 - n->len + n->alignment->ref_end) >
-          (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end +
-              maskLen) ||
-          (n->data + 1 - n->len + n->alignment->ref_end) <
-              (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end -
-                  maskLen - prof->readLen)) &&
-          n->alignment->score == max_score) {
+      else if ((absRefEndPos > absOptEndPos + maskLen || absRefEndPos < absOptEndPos - maskLen - prof->readLen) &&
+                n->alignment->score == max_score) {
         graph->maxCount++;
+        // Keep the node that's closest to the true read origin
+        if (abs(readOriginPos - absRefEndPos) < abs(readOriginPos - absOptEndPos)) {
+          graph->max_node = n;
+        }
       }
       /** A better suboptimal score is found **/
       if ((!graph->submax_node || n->alignment->score > graph->submax_node->alignment->score) &&
-          ((n->data + 1 - n->len + n->alignment->ref_end) >
-              (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end + maskLen) ||
-              (n->data + 1 - n->len + n->alignment->ref_end) <
-                  (graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end - maskLen -
-                      prof->readLen))) {
+          (absRefEndPos > absOptEndPos + maskLen || absRefEndPos < absOptEndPos - maskLen - prof->readLen)) {
         graph->submax_node = n;
         graph->submaxCount = 1;
       }
         /** If a repeat suboptimal score is found away from the current suboptimal **/
       else if (graph->submax_node && n->alignment->score == graph->submax_node->alignment->score &&
-          ((n->data + 1 - n->len + n->alignment->ref_end) >
-              (graph->submax_node->data + 1 - graph->submax_node->len + graph->submax_node->alignment->ref_end +
-                  maskLen) ||
-              (n->data + 1 - n->len + n->alignment->ref_end) <
-                  (graph->submax_node->data + 1 - graph->submax_node->len + graph->submax_node->alignment->ref_end -
-                      maskLen - prof->readLen))) {
+          (absRefEndPos > absSuboptEndPos + maskLen || absRefEndPos < absSuboptEndPos - maskLen - prof->readLen)) {
         graph->submaxCount++;
-        /** Keep the position of the suboptimal closest to the optimal **/
-        if (abs(graph->max_node->id - n->id) < abs(graph->max_node->id - graph->submax_node->id)) {
+        /** Keep the position of the suboptimal closest to the real position **/
+        if (abs(readOriginPos - absRefEndPos) < abs(readOriginPos - absSuboptEndPos)) {
           graph->submax_node = n;
         }
       }
@@ -855,8 +862,6 @@ gssw_node_fill(gssw_node *node,
 
   // and build up a new one
   node->alignment = alignment = gssw_align_create();
-
-
 
 
   // if we have parents, we should generate a new seed as the max of each vector

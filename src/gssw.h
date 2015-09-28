@@ -217,7 +217,8 @@ gssw_graph_fill (gssw_graph* graph,
                  const uint8_t weight_gapO,
                  const uint8_t weight_gapE,
                  const int32_t maskLen,
-                 const int8_t score_size);
+                 const int8_t score_size,
+                 const uint32_t readOriginPos);
 
 gssw_graph* gssw_graph_create(uint32_t size);
 int32_t gssw_graph_add_node(gssw_graph* graph,
