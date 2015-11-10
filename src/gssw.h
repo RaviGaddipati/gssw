@@ -38,6 +38,7 @@ typedef struct gssw_profile gssw_profile;
 typedef struct {
     __m128i* pvE;
     __m128i* pvHStore;
+  uint32_t seglen;
 } gssw_seed;
 
 
@@ -164,6 +165,7 @@ gssw_profile* gssw_init (const int8_t* read, const int32_t readLen, const int8_t
 */
 
 gssw_align* gssw_align_create(void);
+void gssw_align_reset(gssw_align *a, uint32_t seglen);
 
 
 /*!	@function	Release the memory allocated by function ssw_align.

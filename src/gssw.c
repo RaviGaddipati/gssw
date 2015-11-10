@@ -123,15 +123,21 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
   uint8_t max = 0;                             /* the max alignment score */
   int32_t end_read = readLen - 1;
   int32_t end_ref = -1; /* 0_based best alignment ending point; Initialized as isn't aligned -1. */
-  int32_t segLen = (readLen + 15) / 16; /* number of segment */
+  uint32_t segLen = (readLen + 15) / 16; /* number of segment */
 
 
   /* Note use of aligned memory.  Return value of 0 means success for posix_memalign. */
-  if (!(!posix_memalign((void **) &alignment->seed.pvE, sizeof(__m128i), segLen * sizeof(__m128i)) &&
-      !posix_memalign((void **) &alignment->seed.pvHStore, sizeof(__m128i), segLen * sizeof(__m128i))
-  )) {
-    fprintf(stderr, "error:[gssw] Could not allocate memory required for alignment buffers.\n");
-    exit(1);
+  // Check if memory was allocated
+  if (&alignment->seed.seglen == NULL) {
+    if (!(!posix_memalign((void **) &alignment->seed.pvE, sizeof(__m128i), segLen * sizeof(__m128i)) &&
+        !posix_memalign((void **) &alignment->seed.pvHStore, sizeof(__m128i), segLen * sizeof(__m128i))
+    )) {
+      fprintf(stderr, "error:[gssw] Could not allocate memory required for alignment buffers.\n");
+      exit(1);
+    }
+  } else {
+    // If it was, reset the alignment. Also does memset on the seed
+    gssw_align_reset(alignment, segLen);
   }
 
   /* Workaround because we don't have an aligned calloc */
@@ -139,8 +145,8 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
   memset(pvHLoad, 0, segLen * sizeof(__m128i));
   memset(pvHmax, 0, segLen * sizeof(__m128i));
   memset(pvE, 0, segLen * sizeof(__m128i));
-  memset(alignment->seed.pvE, 0, segLen * sizeof(__m128i));
-  memset(alignment->seed.pvHStore, 0, segLen * sizeof(__m128i));
+  // memset(alignment->seed.pvE, 0, segLen * sizeof(__m128i));
+  // memset(alignment->seed.pvHStore, 0, segLen * sizeof(__m128i));
 
   /* if we are running a seeded alignment, copy over the seeds */
   if (seed) {
@@ -554,6 +560,25 @@ void gssw_align_destroy(gssw_align *a) {
   free(a);
 }
 
+void gssw_align_reset(gssw_align *a, uint32_t seglen) {
+  if (a->seed.seglen == seglen) {
+    memset(a->seed.pvE, 0, seglen * sizeof(__m128i));
+    memset(a->seed.pvHStore, 0, seglen * sizeof(__m128i));
+
+  } else {
+    gssw_align_clear_matrix_and_seed(a);
+    if (!(!posix_memalign((void **) &a->seed.pvE, sizeof(__m128i), seglen * sizeof(__m128i)) &&
+        !posix_memalign((void **) &a->seed.pvHStore, sizeof(__m128i), seglen * sizeof(__m128i))
+    )) {
+      fprintf(stderr, "error:[gssw] Could not allocate memory required for alignment buffers.\n");
+      exit(1);
+    }
+    memset(a->seed.pvE, 0, seglen * sizeof(__m128i));
+    memset(a->seed.pvHStore, 0, seglen * sizeof(__m128i));
+    a->seed.seglen = seglen;
+  }
+}
+
 void gssw_align_clear_matrix_and_seed(gssw_align *a) {
   free(a->seed.pvHStore);
   a->seed.pvHStore = NULL;
@@ -857,13 +882,14 @@ gssw_node_fill(gssw_node *node,
   gssw_align *alignment = node->alignment;
 
 
-  if (alignment) {
-    // clear old alignment
-    gssw_align_destroy(alignment);
+  if (!alignment) {
+    // Create an alignment if none exists
+    node->alignment = alignment = gssw_align_create();
+    node->alignment->seed.seglen = 0;
   }
 
   // and build up a new one
-  node->alignment = alignment = gssw_align_create();
+  // node->alignment = alignment = gssw_align_create();
 
 
   // if we have parents, we should generate a new seed as the max of each vector
