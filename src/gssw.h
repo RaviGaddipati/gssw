@@ -1,12 +1,12 @@
 /*
- *  ssw.h
+ *  gssw.h
  *
  *  Created by Mengyao Zhao on 6/22/10.
  *  Copyright 2010 Boston College. All rights reserved.
  *	Version 0.1.4
- *	Last revision by Mengyao Zhao on 01/30/13.
  *
- *	Modified by Ravi Gaddipati to remove traceback.
+ *	Modified by Ravi Gaddipati to remove traceback as well as other minor performance changes.
+ *	Last modified by Ravi Gaddipati on Nov 20, 2015.
  *
  */
 
