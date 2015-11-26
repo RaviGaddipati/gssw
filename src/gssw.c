@@ -815,10 +815,11 @@ gssw_graph_fill(gssw_graph *graph,
 
       /** Absolute positions **/
       uint32_t absRefEndPos = (uint32_t) n->data + 1 - n->len + n->alignment->ref_end;
-      uint32_t absOptEndPos = graph->max_node ?
-          (uint32_t) graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end : 0;
+      uint32_t absOptEndPos = graph->max_node ? (uint32_t) graph->max_node->data + 1 - graph->max_node->len
+          + graph->max_node->alignment->ref_end : 0;
       uint32_t absSuboptEndPos = graph->submax_node ?
-          (uint32_t) graph->submax_node->data + 1 - graph->submax_node->len + graph->submax_node->alignment->ref_end : 0;
+                                 (uint32_t) graph->submax_node->data + 1 - graph->submax_node->len
+                                     + graph->submax_node->alignment->ref_end : 0;
 
       /** New high score found **/
       if (!graph->max_node || n->alignment->score > max_score) {
@@ -826,15 +827,19 @@ gssw_graph_fill(gssw_graph *graph,
         max_score = n->alignment->score;
         graph->maxCount = 1;
       }
-        /** If a repeat of the max score is found away from the current max score **/
-        //TODO Maybe can remove left check if the best score is gaurenteed to only get higher to the right
-      else if ((absRefEndPos > absOptEndPos + maskLen || absRefEndPos < absOptEndPos - maskLen - prof->readLen) &&
-                n->alignment->score == max_score) {
+
+      /** If a repeat of the max score is found away from the current max score **/
+      //TODO Maybe can remove left check if the best score is guaranteed to only get higher to the right
+      if ((absRefEndPos > absOptEndPos + maskLen || absRefEndPos < absOptEndPos - maskLen - prof->readLen) &&
+          n->alignment->score == max_score) {
         graph->maxCount++;
         // Keep the node that's closest to the true read origin
         //TODO move best score tracking w/ actual read origin down to sw_sse2
         if (abs(readOriginPos - absRefEndPos) < abs(readOriginPos - absOptEndPos)) {
           graph->max_node = n;
+          absRefEndPos = (uint32_t) n->data + 1 - n->len + n->alignment->ref_end;
+          absOptEndPos =
+              (uint32_t) graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end;
         }
       }
       /** A better suboptimal score is found, and its away from the current optimal pos **/
