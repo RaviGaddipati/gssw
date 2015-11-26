@@ -687,7 +687,6 @@ gssw_seed *gssw_create_seed_byte(int32_t readLen, gssw_node **prev, int32_t coun
       !posix_memalign((void **) &seed->pvHStore, sizeof(__m128i), segLen * sizeof(__m128i)))) {
     fprintf(stderr, "error:[gssw] Could not allocate memory for alignment seed\n");
     exit(1);
-    exit(1);
   }
   memset(seed->pvE, 0, segLen * sizeof(__m128i));
   memset(seed->pvHStore, 0, segLen * sizeof(__m128i));
@@ -716,7 +715,6 @@ gssw_seed *gssw_create_seed_word(int32_t readLen, gssw_node **prev, int32_t coun
   if (!(!posix_memalign((void **) &seed->pvE, sizeof(__m128i), segLen * sizeof(__m128i)) &&
       !posix_memalign((void **) &seed->pvHStore, sizeof(__m128i), segLen * sizeof(__m128i)))) {
     fprintf(stderr, "error:[gssw] Could not allocate memory for alignment seed\n");
-    exit(1);
     exit(1);
   }
   memset(seed->pvE, 0, segLen * sizeof(__m128i));
@@ -940,12 +938,12 @@ gssw_node_fill(gssw_node *node,
 gssw_graph *gssw_graph_create(uint32_t size) {
   gssw_graph *g = calloc(1, sizeof(gssw_graph));
   g->nodes = malloc(size * sizeof(gssw_node *));
-  g->maxCount = 0;
-  g->submaxCount = 0;
   if (!g || !g->nodes) {
     fprintf(stderr, "error:[gssw] Could not allocate memory for graph of %u nodes.\n", size);
     exit(1);
   }
+  g->maxCount = 0;
+  g->submaxCount = 0;
   return g;
 }
 
