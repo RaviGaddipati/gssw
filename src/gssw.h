@@ -200,7 +200,7 @@ void gssw_node_add_prev(gssw_node* n, gssw_node* m);
 void gssw_node_add_next(gssw_node* n, gssw_node* m);
 void gssw_nodes_add_edge(gssw_node* n, gssw_node* m);
 
-void gssw_node_add_indiv(gssw_node *n, int16_t indiv);
+void gssw_node_add_indivs(gssw_node *n, int16_t indiv);
 
 gssw_node*
 gssw_node_fill (gssw_node* node,
