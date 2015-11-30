@@ -615,7 +615,8 @@ gssw_node *gssw_node_create(int data,
   n->count_prev = 0; // are these be set == 0 by calloc?
   n->count_next = 0;
   n->alignment = NULL;
-  n->indivSize = 0;
+  n->indivCompressed = NULL;
+  n->indivCompressedSize = 0;
   return n;
 }
 
@@ -663,10 +664,9 @@ void gssw_nodes_add_edge(gssw_node *n, gssw_node *m) {
   gssw_node_add_prev(m, n);
 }
 
-void gssw_node_add_indivs(gssw_node *n, int16_t indiv) {
-  n->indivSize++;
-  n->indiv = (int16_t *) realloc(n->indiv, n->indivSize * sizeof(int16_t));
-  n->indiv[n->indivSize - 1] = indiv;
+void gssw_node_set_indivs(gssw_node *n, uint8_t *compressedData, size_t compressedDataSize) {
+  n->indivCompressed = compressedData;
+  n->indivCompressedSize = compressedDataSize;
 }
 
 
