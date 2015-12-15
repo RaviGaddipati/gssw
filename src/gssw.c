@@ -811,20 +811,23 @@ gssw_graph_fill(gssw_graph *graph,
                              readOriginPos);
     } else {
 
-      /** Absolute positions **/
-      uint32_t absRefEndPos = (uint32_t) n->data + 1 - n->len + n->alignment->ref_end;
-      uint32_t absOptEndPos = graph->max_node ? (uint32_t) graph->max_node->data + 1 - graph->max_node->len
-          + graph->max_node->alignment->ref_end : 0;
-      uint32_t absSuboptEndPos = graph->submax_node ?
-                                 (uint32_t) graph->submax_node->data + 1 - graph->submax_node->len
-                                     + graph->submax_node->alignment->ref_end : 0;
-
       /** New high score found **/
       if (!graph->max_node || n->alignment->score > max_score) {
         graph->max_node = n;
         max_score = n->alignment->score;
         graph->maxCount = 1;
       }
+
+      /** Absolute positions **/
+      uint32_t
+          absRefEndPos = (uint32_t) n->data + 1 - n->len + n->alignment->ref_end; // End position of current node best
+      uint32_t absOptEndPos = graph->max_node ? (uint32_t) graph->max_node->data + 1 - graph->max_node->len
+          + graph->max_node->alignment->ref_end : 0; // End position of the overall best alignment
+      uint32_t absSuboptEndPos = graph->submax_node ?
+                                 (uint32_t) graph->submax_node->data + 1 - graph->submax_node->len
+                                     + graph->submax_node->alignment->ref_end
+                                                    : 0; // Current best suboptimal alignment position
+
 
       /** If a repeat of the max score is found away from the current max score **/
       //TODO Maybe can remove left check if the best score is guaranteed to only get higher to the right
