@@ -204,12 +204,13 @@ void gssw_node_set_indivs(gssw_node *n, uint8_t *compressedData, size_t compress
 
 gssw_node*
 gssw_node_fill (gssw_node* node,
-                const gssw_profile* prof,
-                const uint8_t weight_gapO,
-                const uint8_t weight_gapE,
-                const int32_t maskLen,
-                const gssw_seed* seed,
-                __m128i* pvHStore, __m128i* pvHLoad, __m128i* pvHmax, __m128i* pvE);
+				const gssw_profile *prof,
+				const uint8_t weight_gapO,
+				const uint8_t weight_gapE,
+				const int32_t maskLen,
+				const gssw_seed *seed,
+				__m128i *pvHStore, __m128i *pvHLoad, __m128i *pvHmax, __m128i *pvE,
+				uint32_t readOrigin);
 
 gssw_graph*
 gssw_graph_fill (gssw_graph* graph,
