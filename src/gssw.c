@@ -282,7 +282,7 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
     vMaxScore = _mm_max_epu8(vMaxScore, vMaxColumn);
     vTemp = _mm_cmpeq_epi8(vMaxMark, vMaxScore);
     cmp = _mm_movemask_epi8(vTemp);
-    if (cmp != 0xffff) {
+    // if (cmp != 0xffff) { always execute logic so we can check for equal max scores
       uint8_t temp;
       vMaxMark = vMaxScore;
       m128i_max16(temp, vMaxScore);
@@ -298,12 +298,12 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
 
       }
         // Check if an equal max score is closer to readOrigin
-      else if (UNLIKELY(temp == max) && abs(readOrigin - i) < abs(readOrigin - end_ref)) {
+      else if (temp == max && abs(readOrigin - i) < abs(readOrigin - end_ref)) {
         end_ref = i;
         /* Store the column with the highest alignment score in order to trace the alignment ending position on read. */
         for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
       }
-    }
+    // }
 
   }
 #if DEBUG > 5
@@ -498,7 +498,7 @@ gssw_alignment_end *gssw_sw_sse2_word(const int8_t *ref,
     vMaxScore = _mm_max_epi16(vMaxScore, vMaxColumn);
     vTemp = _mm_cmpeq_epi16(vMaxMark, vMaxScore);
     cmp = _mm_movemask_epi8(vTemp);
-    if (cmp != 0xffff) {
+    //if (cmp != 0xffff) { always execute logic so we can check for equal max scores
       uint16_t temp;
       vMaxMark = vMaxScore;
       m128i_max8(temp, vMaxScore);
@@ -515,8 +515,9 @@ gssw_alignment_end *gssw_sw_sse2_word(const int8_t *ref,
         /* Store the column with the highest alignment score in order to trace the alignment ending position on read. */
         for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
       }
-    }
+    //}
   }
+
 
   memcpy(alignment->seed.pvE, pvE, segLen * sizeof(__m128i));
   memcpy(alignment->seed.pvHStore, pvHStore, segLen * sizeof(__m128i));
