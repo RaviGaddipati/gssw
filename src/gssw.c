@@ -119,8 +119,10 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
                                       const gssw_seed *seed,
                                       __m128i *pvHStore, __m128i *pvHLoad, __m128i *pvHmax,
                                       __m128i *pvE, /* to seed the alignment */
-                                      uint32_t readOrigin) {    /* Keep best score closest to this */
+                                      uint32_t readOrigin,
+                                      int nodeMaxPos) {    /* Keep best score closest to this */
 
+  int nodeStart = nodeMaxPos - refLen;
   uint8_t max = 0;                             /* the max alignment score */
   int32_t end_read = readLen - 1;
   int32_t end_ref = -1; /* 0_based best alignment ending point; Initialized as isn't aligned -1. */
@@ -283,26 +285,26 @@ gssw_alignment_end *gssw_sw_sse2_byte(const int8_t *ref,
     vTemp = _mm_cmpeq_epi8(vMaxMark, vMaxScore);
     cmp = _mm_movemask_epi8(vTemp);
     // if (cmp != 0xffff) { always execute logic so we can check for equal max scores
-      uint8_t temp;
-      vMaxMark = vMaxScore;
-      m128i_max16(temp, vMaxScore);
-      vMaxScore = vMaxMark;
+    uint8_t temp;
+    vMaxMark = vMaxScore;
+    m128i_max16(temp, vMaxScore);
+    vMaxScore = vMaxMark;
 
-      if (LIKELY(temp > max)) {
-        max = temp;
-        if (max + bias >= 255) break;    //overflow
-        end_ref = i;
+    if (LIKELY(temp > max)) {
+      max = temp;
+      if (max + bias >= 255) break;    //overflow
+      end_ref = i;
 
-        /* Store the column with the highest alignment score in order to trace the alignment ending position on read. */
-        for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
+      /* Store the column with the highest alignment score in order to trace the alignment ending position on read. */
+      for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
 
-      }
-        // Check if an equal max score is closer to readOrigin
-      else if (temp == max && abs(readOrigin - i) < abs(readOrigin - end_ref)) {
-        end_ref = i;
-        /* Store the column with the highest alignment score in order to trace the alignment ending position on read. */
-        for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
-      }
+    }
+      // Check if an equal max score is closer to readOrigin
+    else if (UNLIKELY(temp == max) && abs(readOrigin - (nodeStart + i)) < abs(readOrigin - (nodeStart + end_ref))) {
+      end_ref = i;
+      /* Store the column with the highest alignment score in order to trace the alignment ending position on read. */
+      for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
+    }
     // }
 
   }
@@ -374,9 +376,10 @@ gssw_alignment_end *gssw_sw_sse2_word(const int8_t *ref,
                                       const gssw_seed *seed,
                                       __m128i *pvHStore, __m128i *pvHLoad, __m128i *pvHmax,
                                       __m128i *pvE,  /* to seed the alignment */
-                                      uint32_t readOrigin) {   /* Keep best score closest to this */
+                                      uint32_t readOrigin,
+                                      int nodeMaxPos) {   /* Keep best score closest to this */
 
-
+  int nodeStart = nodeMaxPos - refLen;
   uint16_t max = 0;                             /* the max alignment score */
   int32_t end_read = readLen - 1;
   int32_t end_ref = 0; /* 1_based best alignment ending point; Initialized as isn't aligned - 0. */
@@ -439,7 +442,8 @@ gssw_alignment_end *gssw_sw_sse2_word(const int8_t *ref,
   }
   for (i = begin; LIKELY(i != end); i += step) {
     int32_t cmp;
-    __m128i e = vZero, vF = vZero; /* Initialize F value to 0.
+
+    __m128i e = vZero, vF = vZero; /* Initialize F value to 0 (Gap to ref).
 							   Any errors to vH values will be corrected in the Lazy_F loop.
 							 */
     __m128i vH = pvHStore[segLen - 1];
@@ -499,22 +503,22 @@ gssw_alignment_end *gssw_sw_sse2_word(const int8_t *ref,
     vTemp = _mm_cmpeq_epi16(vMaxMark, vMaxScore);
     cmp = _mm_movemask_epi8(vTemp);
     //if (cmp != 0xffff) { always execute logic so we can check for equal max scores
-      uint16_t temp;
-      vMaxMark = vMaxScore;
-      m128i_max8(temp, vMaxScore);
-      vMaxScore = vMaxMark;
+    uint16_t temp;
+    vMaxMark = vMaxScore;
+    m128i_max8(temp, vMaxScore);
+    vMaxScore = vMaxMark;
 
-      if (LIKELY(temp > max)) {
-        max = temp;
-        end_ref = i;
-        for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
-      }
-        // Check if an equal max score is closer to readOrigin
-      else if (UNLIKELY(temp == max) && abs(readOrigin - i) < abs(readOrigin - end_ref)) {
-        end_ref = i;
-        /* Store the column with the highest alignment score in order to trace the alignment ending position on read. */
-        for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
-      }
+    if (LIKELY(temp > max)) {
+      max = temp;
+      end_ref = i;
+      for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
+    }
+      // Check if an equal max score is closer to readOrigin
+    else if (UNLIKELY(temp == max) && abs(readOrigin - (nodeStart + i)) < abs(readOrigin - (nodeStart + end_ref))) {
+      end_ref = i;
+      /* Store the column with the highest alignment score in order to trace the alignment ending position on read. */
+      for (j = 0; LIKELY(j < segLen); ++j) pvHmax[j] = pvHStore[j];
+    }
     //}
   }
 
@@ -772,7 +776,7 @@ gssw_graph_fill(gssw_graph *graph,
   __m128i *pvHmax;
   __m128i *pvE;
 
-  int32_t read_length = (int32_t)strlen(read_seq);
+  int32_t read_length = (int32_t) strlen(read_seq);
   int8_t *read_num = gssw_create_num(read_seq, read_length, nt_table);
   gssw_profile *prof = gssw_init(read_num, read_length, score_matrix, 5, score_size);
   gssw_seed *seed = NULL;
@@ -930,7 +934,7 @@ gssw_node_fill(gssw_node *node,
   if (prof->profile_byte) {
     bests = gssw_sw_sse2_byte((const int8_t *) node->num, 0, node->len, readLen, weight_gapO, weight_gapE,
                               prof->profile_byte, -1, prof->bias, maskLen, alignment, seed,
-                              pvHStore, pvHLoad, pvHmax, pvE, readOrigin);
+                              pvHStore, pvHLoad, pvHmax, pvE, readOrigin, node->data);
     if (bests[0].score == 255) {
       free(bests);
       gssw_align_clear_matrix_and_seed(alignment);
@@ -939,7 +943,7 @@ gssw_node_fill(gssw_node *node,
   } else if (prof->profile_word) {
     bests = gssw_sw_sse2_word((const int8_t *) node->num, 0, node->len, readLen, weight_gapO, weight_gapE,
                               prof->profile_word, -1, maskLen, alignment, seed,
-                              pvHStore, pvHLoad, pvHmax, pvE, readOrigin);
+                              pvHStore, pvHLoad, pvHmax, pvE, readOrigin, node->data);
   } else {
     fprintf(stderr, "Please call the function ssw_init before ssw_align.\n");
     return 0;
