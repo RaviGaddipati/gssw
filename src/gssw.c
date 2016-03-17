@@ -830,54 +830,67 @@ gssw_graph_fill(gssw_graph *graph,
                              readOriginPos);
     } else {
 
-      /** New high score found **/
+      /** Absolute positions **/
+      uint32_t currNodeEndPos = (uint32_t)
+          n->data + 1 - n->len + n->alignment->ref_end; // End position of current node best
+      uint32_t maxNodeEndPos = graph->max_node ? (uint32_t)
+          graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end
+                                               : 0; // End position of the overall best alignment
+      uint32_t submaxNodeEndPos = graph->submax_node ? (uint32_t)
+          graph->submax_node->data + 1 - graph->submax_node->len + graph->submax_node->alignment->ref_end
+                                                     : 0; // Current best suboptimal alignment position
+
+
+      // Optimal Alignment
+      // New best score
       if (!graph->max_node || n->alignment->score > max_score) {
         graph->max_node = n;
         max_score = n->alignment->score;
         graph->maxCount = 1;
+
+        maxNodeEndPos = (uint32_t)
+            graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end;
       }
 
-      /** Absolute positions **/
-      uint32_t
-          absRefEndPos = (uint32_t) n->data + 1 - n->len + n->alignment->ref_end; // End position of current node best
-      uint32_t absOptEndPos = graph->max_node ? (uint32_t) graph->max_node->data + 1 - graph->max_node->len
-          + graph->max_node->alignment->ref_end : 0; // End position of the overall best alignment
-      uint32_t absSuboptEndPos = graph->submax_node ?
-                                 (uint32_t) graph->submax_node->data + 1 - graph->submax_node->len
-                                     + graph->submax_node->alignment->ref_end
-                                                    : 0; // Current best suboptimal alignment position
+        // Equal best score
+      else if (n->alignment->score == max_score) {
+        // See if we count it as a new 'best' alignment, its away from the current max
+        if (currNodeEndPos > maxNodeEndPos + maskLen || currNodeEndPos < maxNodeEndPos - maskLen - prof->readLen) {
+          graph->maxCount++;
+        }
 
-
-      /** If a repeat of the max score is found away from the current max score **/
-      //TODO Maybe can remove left check if the best score is guaranteed to only get higher to the right
-      if ((absRefEndPos > absOptEndPos + maskLen || absRefEndPos < absOptEndPos - maskLen - prof->readLen) &&
-          n->alignment->score == max_score) {
-        graph->maxCount++;
-        // Keep the node that's closest to the true read origin
-        //TODO move best score tracking w/ actual read origin down to sw_sse2
-        if (abs(readOriginPos - absRefEndPos) < abs(readOriginPos - absOptEndPos)) {
+        // If this equal max score is closer to the true read origin
+        if (abs(readOriginPos - currNodeEndPos) < abs(readOriginPos - maxNodeEndPos)) {
           graph->max_node = n;
-          absRefEndPos = (uint32_t) n->data + 1 - n->len + n->alignment->ref_end;
-          absOptEndPos =
-              (uint32_t) graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end;
+          maxNodeEndPos = (uint32_t)
+              graph->max_node->data + 1 - graph->max_node->len + graph->max_node->alignment->ref_end;
         }
       }
-      /** A better suboptimal score is found, and its away from the current optimal pos **/
+
+
+      // Suboptimal alignment
+      // New best suboptimal
       if ((!graph->submax_node || n->alignment->score > graph->submax_node->alignment->score) &&
-          (absRefEndPos > absOptEndPos + maskLen || absRefEndPos < absOptEndPos - maskLen - prof->readLen)) {
+          currNodeEndPos > maxNodeEndPos + maskLen || currNodeEndPos < maxNodeEndPos - maskLen - prof->readLen) {
+        // We have a better suboptimal alignment that is some distance away from the best alignment
         graph->submax_node = n;
         graph->submaxCount = 1;
       }
-        /** If a repeat suboptimal score is found away from the current suboptimal **/
-      else if (graph->submax_node && n->alignment->score == graph->submax_node->alignment->score &&
-          (absRefEndPos > absSuboptEndPos + maskLen || absRefEndPos < absSuboptEndPos - maskLen - prof->readLen)) {
-        graph->submaxCount++;
-        /** Keep the position of the suboptimal closest to the real position **/
-        if (abs(readOriginPos - absRefEndPos) < abs(readOriginPos - absSuboptEndPos)) {
+
+        // Repeat of a subopt score
+      else if (graph->submax_node && n->alignment->score == graph->submax_node->alignment->score) {
+
+        // Repeat away from current subopt
+        if (currNodeEndPos > submaxNodeEndPos + maskLen
+            || currNodeEndPos < submaxNodeEndPos - maskLen - prof->readLen) {
+          graph->submaxCount++;
+        }
+
+        // suboptimal score close to real origin position
+        if (abs(readOriginPos - currNodeEndPos) < abs(readOriginPos - maxNodeEndPos)) {
           graph->submax_node = n;
         }
       }
-
     }
   }
 
