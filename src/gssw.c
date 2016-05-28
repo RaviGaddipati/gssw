@@ -824,7 +824,7 @@ gssw_graph_fill(gssw_graph *graph,
       !posix_memalign((void **) &pvHLoad, sizeof(__m128i), segLen * sizeof(__m128i)) &&
       !posix_memalign((void **) &pvHmax, sizeof(__m128i), segLen * sizeof(__m128i)) &&
       !posix_memalign((void **) &pvE, sizeof(__m128i), segLen * sizeof(__m128i)))) {
-    fprintf(stderr, "Error allocating memory in graph fill\n");
+    fprintf(stderr, "Error allocating memory in Graph fill\n");
     exit(1);
   }
 
@@ -969,8 +969,8 @@ gssw_node_fill(gssw_node *node,
   // otherwise, just use the single parent alignment result as seed
   // or, if no parents, run unseeded
 
-  // to decrease code complexity, we assume the same stripe size for the entire graph
-  // this is ensured by changing the stripe size for the entire graph in graph_fill if any node scores >= 255
+  // to decrease code complexity, we assume the same stripe size for the entire Graph
+  // this is ensured by changing the stripe size for the entire Graph in graph_fill if any node scores >= 255
 
   // Find the alignment scores and ending positions
   // Find the alignment scores and ending positions
@@ -1005,7 +1005,7 @@ gssw_graph *gssw_graph_create(uint32_t size) {
   gssw_graph *g = calloc(1, sizeof(gssw_graph));
   g->nodes = malloc(size * sizeof(gssw_node *));
   if (!g || !g->nodes) {
-    fprintf(stderr, "error:[gssw] Could not allocate memory for graph of %u nodes.\n", size);
+    fprintf(stderr, "error:[gssw] Could not allocate memory for Graph of %u nodes.\n", size);
     exit(1);
   }
   g->maxCount = 0;
@@ -1030,7 +1030,7 @@ int32_t gssw_graph_add_node(gssw_graph *graph, gssw_node *node) {
     size_t old_size = graph->size * sizeof(void *);
     size_t increment = 1024 * sizeof(void *);
     if (UNLIKELY(!(graph->nodes = realloc((void *) graph->nodes, old_size + increment)))) {
-      fprintf(stderr, "error:[gssw] could not allocate memory for graph\n");
+      fprintf(stderr, "error:[gssw] could not allocate memory for Graph\n");
       exit(1);
     }
   }
